@@ -1,55 +1,63 @@
 from fastapi import FastAPI, HTTPException, Response
-from motion_detection import start_motion_detection
-from entities import *
+
+from model.MotionDetectionThread import MotionDetectionThread
+from model.Subscription import Subscription
+from model.dtos.input.SubscriptionInputDto import SubscriptionInputDto
+from model.dtos.output.SubscriptionOutputDto import SubscriptionOutputDto
+from utils.motion_detection import start_motion_detection
 import cv2
-from dotenv import set_key
 
 app = FastAPI()
-threads = {} #camera url -> thread
-subscriptionItems = {} #camera url -> subscription
 
-@app.post("/subscribe")
-async def subscribe(item: SubscribeItem):
-    if item.camera_url in threads:
-        raise HTTPException(status_code=400, detail="a thread is already running, unsubscribe first")
-    t = CameraThread(target=start_motion_detection, args=(item.camera_url, item.movement_callback_url, item.crash_callback_url))
-    t.start()
-    threads[item.camera_url] = t
-    subscriptionItems[item.camera_url] = item
-    
-    subscriptionToReturn = Subscription(camera_url=item.camera_url, status=ThreadStatus.STARTING, movement_callback_url=item.movement_callback_url, crash_callback_url=item.crash_callback_url)
-    return subscriptionToReturn
+subscriptions = {}  #camera url -> subscription
 
-@app.post("/unsubscribe")
-async def unsubscribe(item: UnsubscribeItem):
-    if item.camera_url in threads:
-        threads[item.camera_url].do_run = False
-        del threads[item.camera_url]
-        del subscriptionItems[item.camera_url]
-        return Response(status_code=204)
-    else:
-        raise HTTPException(status_code=404, detail="thread not found for this url")
 
-@app.get("/getSubscription")
+@app.post("/")
+async def create_subscription(item: SubscriptionInputDto):
+    if item.camera_url in subscriptions:
+        raise HTTPException(status_code=400, detail="a subscription with this url is already running, delete it first")
+
+    cap = cv2.VideoCapture(item.camera_url)
+    if not cap.isOpened():
+        raise HTTPException(status_code=400, detail="can't connect to camera (check if url is valid)")
+
+    thread = MotionDetectionThread(target=start_motion_detection,
+                                   args=(item,))
+    thread.start()
+    subscriptions[item.camera_url] = Subscription(camera_url=item.camera_url,
+                                                  movement_callback_url=item.movement_callback_url,
+                                                  crash_callback_url=item.crash_callback_url,
+                                                  min_contour_area=item.min_contour_area,
+                                                  cooldown_seconds=item.cooldown_seconds,
+                                                  motion_detection_thread=thread)
+
+    return SubscriptionOutputDto(camera_url=item.camera_url,
+                                 movement_callback_url=item.movement_callback_url,
+                                 crash_callback_url=item.crash_callback_url,
+                                 min_contour_area=item.min_contour_area,
+                                 cooldown_seconds=item.cooldown_seconds,
+                                 status=thread.status)
+
+
+@app.get("/")
 async def get_subscription(camera_url: str):
-    if camera_url in threads:
-        subscriptionToReturn = Subscription(camera_url=camera_url, status=threads[camera_url].status, movement_callback_url=subscriptionItems[camera_url].movement_callback_url, crash_callback_url=subscriptionItems[camera_url].crash_callback_url)
-        return subscriptionToReturn
+    if camera_url in subscriptions:
+        subscription = subscriptions[camera_url]
+        return SubscriptionOutputDto(camera_url=subscription.camera_url,
+                                     movement_callback_url=subscription.movement_callback_url,
+                                     crash_callback_url=subscription.crash_callback_url,
+                                     min_contour_area=subscription.min_contour_area,
+                                     cooldown_seconds=subscription.cooldown_seconds,
+                                     status=subscription.motion_detection_thread.status)
     else:
-        raise HTTPException(status_code=404, detail="thread not found for this url")
-    
-@app.get("/checkCameraConnection")
-def connect_camera(camera_url: str):
-    cap = cv2.VideoCapture(camera_url)
-    if cap.isOpened():
+        raise HTTPException(status_code=404, detail="subscription not found for this url")
+
+
+@app.delete("/")
+async def cancel_subscription(camera_url: str):
+    if camera_url in subscriptions:
+        subscriptions[camera_url].motion_detection_thread.do_run = False
+        del subscriptions[camera_url]
         return Response(status_code=204)
     else:
-        return {"camera_url": camera_url}
-    
-@app.put("/updateEnv")
-async def update_env(item: EnvItem):
-    set_key('.env', 'MIN_CONTOUR_AREA', str(item.min_contour_area))
-    set_key('.env', 'COOLDOWN_SECONDS', str(item.cooldown_seconds))
-    for camera_url in threads:
-        threads[camera_url].do_update_env = True
-    return Response(status_code=204)
+        raise HTTPException(status_code=404, detail="subscription not found for this url")
