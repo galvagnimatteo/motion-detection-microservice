@@ -7,3 +7,4 @@ python-dotenv==0.19.1
 pydantic==1.8.2
 imutils==0.5.4
 opencv-python==4.9.0.80
+pytest~=8.1.1

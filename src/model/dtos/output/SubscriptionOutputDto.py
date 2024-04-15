@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from model.enums.ThreadStatus import ThreadStatus
+
+from src.model.enums.ThreadStatus import ThreadStatus
 
 
 class SubscriptionOutputDto(BaseModel):

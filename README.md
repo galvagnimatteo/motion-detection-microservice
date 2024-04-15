@@ -26,7 +26,7 @@ This service has NO persistence, so if shut down it will lose all saved subscrip
 
 If the thread crashes for some reason, an empty POST request will be sent to another endpoint of yours to inform you about the crash.
 
-You can go to [localhost:USE_PORT/docs] or use the provided OpenApi schema to learn more about the available endpoints.
+You can go to [localhost:USE_PORT/docs]() or use the provided OpenApi schema to learn more about the available endpoints.
 
 ## Subscription statuses
 If you perform a GET request passing the camera URL used for subscription, a subscription object will be returned with
@@ -51,3 +51,7 @@ thread stopping signal and the subscription deletion.
 - A camera detects movement, your callback URL is called and the cooldown period starts
     - If camera still detects movement it will not call the callback URL until cooldown period is finished
 - Unsubscribe with camera URL to stop detection
+
+## Tests
+Run `python -m pytest` to run integration tests. 
+That's it.

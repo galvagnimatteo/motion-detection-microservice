@@ -1,4 +1,4 @@
-from model.MotionDetectionThread import MotionDetectionThread
+from src.model.MotionDetectionThread import MotionDetectionThread
 
 
 class Subscription:

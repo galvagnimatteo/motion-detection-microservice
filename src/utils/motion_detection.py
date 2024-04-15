@@ -4,7 +4,7 @@ import time
 import threading
 import imutils
 
-from model.enums.ThreadStatus import ThreadStatus
+from src.model.enums.ThreadStatus import ThreadStatus
 
 
 #precondition: camera url is valid and works
